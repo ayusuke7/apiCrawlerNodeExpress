@@ -4,6 +4,8 @@ const service = require("./service");
 const app = express();
 const crawler = service();
 
+app.use(express.static("public"));
+
 app.get("/", async function (req, res) {
   res.send(`
     <ul>
@@ -31,7 +33,7 @@ app.get("/platforms/:name?/:letter?", async function (req, res) {
   }
 });
 
-app.get("/roms/:platform/:name", async function (req, res) {
+app.get("/platforms/:platform/roms/:name", async function (req, res) {
   try {
     const { platform, name } = req.params;
     const info = await crawler.getInfoRoms(platform, name);

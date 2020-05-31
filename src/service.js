@@ -1,26 +1,47 @@
 const request = require("request");
 const cheerio = require("cheerio");
+const path = require("path");
+const fs = require("fs");
 
+const blacklist = require("./blacklist.json");
 const baseUrl = "https://www.freeroms.com";
 
 module.exports = function () {
-  function getAllPlatforms() {
+  function listAllFiles() {
     return new Promise((resolve, reject) => {
+      fs.readdir("public/images", function (err, files) {
+        if (err) reject(err);
+        resolve(files);
+      });
+    });
+  }
+
+  function getAllPlatforms() {
+    return new Promise(async (resolve, reject) => {
+      const files = await listAllFiles();
+
       request.get(baseUrl, (err, res, body) => {
         if (!err && res.statusCode === 200) {
           const $ = cheerio.load(body);
-          const pathMenu = "ul.desktop-menu";
-          const plaforms = $(pathMenu)
+
+          const plaforms = $("ul.desktop-menu")
             .children()
             .map((i, elem) => {
               const name = $(elem).children("a").text();
+
               const plaform = $(elem)
                 .children("a")
                 .attr("href")
-                .replace("/", "")
-                .replace(".htm", "");
+                .replace(/[\/.htm]/g, "");
 
-              return { name, plaform, image: "" };
+              const image =
+                files.find((file) =>
+                  name.toLowerCase().includes(file.split(".")[0])
+                ) || "";
+
+              if (!blacklist.includes(plaform.toLowerCase())) {
+                return { name, plaform, image };
+              }
             })
             .get();
 
@@ -34,17 +55,22 @@ module.exports = function () {
 
   function getRomsByPlatform(platform, letter = "A") {
     return new Promise((resolve, reject) => {
-      const path =
-        platform && platform.includes("roms") ? platform : `${platform}_roms`;
+      const path = platform.includes("roms") ? platform : `${platform}_roms`;
       const url = `${baseUrl}/${path}_${letter.toUpperCase()}.htm`;
+
       request.get(url, (err, res, body) => {
+        const $ = cheerio.load(body);
+
+        const paginate = $(".pagination > .page")
+          .first()
+          .children("a")
+          .map((i, elem) => {
+            const text = $(elem).text();
+            if (text !== "#") return text;
+          })
+          .get();
+
         if (!err && res.statusCode === 200) {
-          const $ = cheerio.load(body);
-
-          const paginate = $(".pagination > .page > a")
-            .map((i, elem) => $(elem).text())
-            .get();
-
           const roms = $(".rom-tr.title > a")
             .map((i, elem) => {
               const name = $(elem).text();
@@ -61,14 +87,15 @@ module.exports = function () {
           resolve({ platform, letter, paginate, roms });
         }
 
-        reject({});
+        reject({ platform, letter, paginate });
       });
     });
   }
 
   function getInfoRoms(platform, path) {
     return new Promise((resolve, reject) => {
-      const url = `${baseUrl}/roms/${platform}/${path}.htm`;
+      const sanitize = platform.replace(/[_roms]/g, "");
+      const url = `${baseUrl}/roms/${sanitize}/${path}.htm`;
       request.get(url, (err, res, body) => {
         if (!err && res.statusCode === 200) {
           const $ = cheerio.load(body);
@@ -106,7 +133,7 @@ module.exports = function () {
 
           resolve({ platform, name, path, size, images, download });
         }
-        reject({});
+        reject(null);
       });
     });
   }
