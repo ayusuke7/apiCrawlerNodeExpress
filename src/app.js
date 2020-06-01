@@ -1,8 +1,11 @@
 const express = require("express");
 const service = require("./service");
+const cors = require("cors");
 
 const app = express();
 const crawler = service();
+
+app.use(cors());
 
 app.use(express.static("public"));
 
