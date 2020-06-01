@@ -32,12 +32,13 @@ module.exports = function () {
               const plaform = $(elem)
                 .children("a")
                 .attr("href")
-                .replace(/[\/.htm]/g, "");
+                .replace("/", "")
+                .replace(".htm", "");
 
               const image =
                 files.find((file) =>
                   name.toLowerCase().includes(file.split(".")[0])
-                ) || "";
+                ) || null;
 
               if (!blacklist.includes(plaform.toLowerCase())) {
                 return { name, plaform, image };
@@ -55,22 +56,22 @@ module.exports = function () {
 
   function getRomsByPlatform(platform, letter = "A") {
     return new Promise((resolve, reject) => {
-      const path = platform.includes("roms") ? platform : `${platform}_roms`;
-      const url = `${baseUrl}/${path}_${letter.toUpperCase()}.htm`;
+      const path = `${platform.split("_")[0]}_roms_${letter.toUpperCase()}.htm`;
+      const url = `${baseUrl}/${path}`;
 
       request.get(url, (err, res, body) => {
         const $ = cheerio.load(body);
 
-        const paginate = $(".pagination > .page")
-          .first()
-          .children("a")
-          .map((i, elem) => {
-            const text = $(elem).text();
-            if (text !== "#") return text;
-          })
-          .get();
-
         if (!err && res.statusCode === 200) {
+          const paginate = $(".pagination > .page")
+            .first()
+            .children("a")
+            .map((i, elem) => {
+              const text = $(elem).text();
+              if (text !== "#") return text;
+            })
+            .get();
+
           const roms = $(".rom-tr.title > a")
             .map((i, elem) => {
               const name = $(elem).text();
@@ -87,14 +88,14 @@ module.exports = function () {
           resolve({ platform, letter, paginate, roms });
         }
 
-        reject({ platform, letter, paginate });
+        reject(null);
       });
     });
   }
 
   function getInfoRoms(platform, path) {
     return new Promise((resolve, reject) => {
-      const sanitize = platform.replace(/[_roms]/g, "");
+      const sanitize = platform.replace("_", "").replace("roms", "");
       const url = `${baseUrl}/roms/${sanitize}/${path}.htm`;
       request.get(url, (err, res, body) => {
         if (!err && res.statusCode === 200) {
@@ -102,10 +103,11 @@ module.exports = function () {
 
           const name = $(".rom-th-wrap > .rom-tr.title").text();
 
-          const download = $(".system-rom-drct > .drct-link > script")
-            .html()
-            .match(/\bhttps?:\/\/\S+/gi)
-            .map((m) => {
+          let download;
+
+          const script = $(".system-rom-drct > .drct-link > script").html();
+          if (script !== null) {
+            download = script.match(/\bhttps?:\/\/\S+/gi).map((m) => {
               let index;
 
               if (m.indexOf(".zip") > -1) {
@@ -120,6 +122,13 @@ module.exports = function () {
 
               return m.substring(0, index);
             });
+          } else {
+            download = $(".system-rom-tr-wrap > .rom-tr.title > a").attr(
+              "href"
+            );
+
+            download = download ? [`${baseUrl}${download}`] : [];
+          }
 
           const size = $(".system-rom-tr-wrap > .rom-tr.file-size")
             .first()
