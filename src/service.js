@@ -95,7 +95,7 @@ module.exports = function () {
 
   function getInfoRoms(platform, path) {
     return new Promise((resolve, reject) => {
-      const sanitize = platform.replace("_", "").replace("roms", "");
+      const sanitize = platform.split("_")[0];
       const url = `${baseUrl}/roms/${sanitize}/${path}.htm`;
       request.get(url, (err, res, body) => {
         if (!err && res.statusCode === 200) {
